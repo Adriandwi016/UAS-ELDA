@@ -27,6 +27,7 @@
             margin-bottom: 20px;
             padding: 10px;
             border-radius: 4px;
+            font-weight: bold;
         }
         .status.connected {
             background-color: #d4edda;
@@ -49,10 +50,12 @@
         }
         .label {
             font-weight: bold;
+            color: #555;
         }
         .value {
-            font-size: 1.1em;
+            font-size: 1.2em;
             color: #007bff;
+            font-family: 'Courier New', monospace; /* Untuk nilai numerik yang lebih jelas */
         }
     </style>
 </head>
@@ -66,23 +69,23 @@
         <div id="data-display">
             <div class="data-item">
                 <span class="label">Tegangan (V):</span>
-                <span id="tegangan" class="value">0.0</span>
+                <span id="tegangan" class="value">0.0 V</span>
             </div>
             <div class="data-item">
                 <span class="label">Arus (A):</span>
-                <span id="arus" class="value">0.000</span>
+                <span id="arus" class="value">0.000 A</span>
             </div>
             <div class="data-item">
                 <span class="label">Daya (W):</span>
-                <span id="daya" class="value">0.0</span>
+                <span id="daya" class="value">0.0 W</span>
             </div>
             <div class="data-item">
                 <span class="label">Energi (kWh):</span>
-                <span id="energi" class="value">0.000</span>
+                <span id="energi" class="value">0.000 kWh</span>
             </div>
             <div class="data-item">
                 <span class="label">Frekuensi (Hz):</span>
-                <span id="frekuensi" class="value">0.0</span>
+                <span id="frekuensi" class="value">0.0 Hz</span>
             </div>
             <div class="data-item">
                 <span class="label">Power Factor (PF):</span>
@@ -96,10 +99,12 @@
     <script>
         // --- KONFIGURASI MQTT JAVASCRIPT ---
         const MQTT_BROKER = "broker.emqx.io";
-        // Gunakan port 8083 atau 8084 untuk koneksi WebSocket (WSS) karena HTTP biasanya memblokir 1883
-        const MQTT_PORT = 8083; // Default port WebSocket non-TLS untuk EMQX
+        // Gunakan port 8083 untuk koneksi WebSocket non-TLS. 
+        // Port 1883 (TCP) yang digunakan di Python TIDAK bisa dipakai di browser.
+        const MQTT_PORT = 8083; 
         const MQTT_TOPIC = "iot/pzem/data";
-        const CLIENT_ID = "web_pzem_viewer_" + parseInt(Math.random() * 100);
+        // ID Klien harus unik
+        const CLIENT_ID = "web_pzem_viewer_" + parseInt(Math.random() * 10000); 
 
         let client = null;
 
@@ -110,10 +115,10 @@
         function updateStatus(isConnected) {
             const statusElement = document.getElementById("mqtt-status");
             if (isConnected) {
-                statusElement.textContent = "Status: **CONNECTED**";
+                statusElement.textContent = "Status: 🟢 CONNECTED";
                 statusElement.className = "status connected";
             } else {
-                statusElement.textContent = "Status: **DISCONNECTED**";
+                statusElement.textContent = "Status: 🔴 DISCONNECTED (Coba Ulang...)";
                 statusElement.className = "status disconnected";
             }
         }
@@ -132,6 +137,9 @@
             // Opsi koneksi
             const options = {
                 timeout: 3,
+                // Jika broker meminta autentikasi (seperti penyebab RC 5), aktifkan ini:
+                // userName: "ganti_dengan_username_anda", 
+                // password: "ganti_dengan_password_anda",
                 onSuccess: onConnect,
                 onFailure: onFailure
             };
@@ -150,14 +158,14 @@
         function onConnect() {
             console.log("Terhubung ke MQTT Broker!");
             updateStatus(true);
-            // Subscribe ke topik yang sama dengan Python
+            // Subscribe ke topik
             client.subscribe(MQTT_TOPIC);
             console.log(`Berlangganan topik: ${MQTT_TOPIC}`);
         }
 
         // Dipanggil saat koneksi gagal
         function onFailure(responseObject) {
-            console.log("Koneksi gagal: " + responseObject.errorMessage);
+            console.error("Koneksi gagal: " + responseObject.errorMessage);
             updateStatus(false);
             // Coba lagi setelah 5 detik
             setTimeout(startMqttClient, 5000);
@@ -166,7 +174,7 @@
         // Dipanggil saat koneksi terputus
         function onConnectionLost(responseObject) {
             if (responseObject.errorCode !== 0) {
-                console.log("Koneksi terputus: " + responseObject.errorMessage);
+                console.warn("Koneksi terputus: " + responseObject.errorMessage);
             }
             updateStatus(false);
             // Coba lagi setelah 5 detik
@@ -175,13 +183,11 @@
 
         // Dipanggil saat pesan diterima
         function onMessageArrived(message) {
-            console.log("Pesan diterima di topik " + message.destinationName);
-            
             try {
                 // Parse payload JSON
                 const payload = JSON.parse(message.payloadString);
 
-                // Update nilai di elemen HTML
+                // Update nilai di elemen HTML (dengan format angka/satuan)
                 document.getElementById('tegangan').textContent = payload.tegangan.toFixed(1) + " V";
                 document.getElementById('arus').textContent = payload.arus.toFixed(3) + " A";
                 document.getElementById('daya').textContent = payload.daya.toFixed(1) + " W";
